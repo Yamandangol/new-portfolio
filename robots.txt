@@ -1,6 +1,4 @@
 User-agent: *
-Disallow: /wp-admin/
-Allow: /wp-admin/admin-ajax.php
+Disallow:
 
 Sitemap: https://www.yamandangol.com.np/sitemap.xml
-
