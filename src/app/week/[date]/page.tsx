@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import SetupNotice from "@/components/SetupNotice";
 import WeekView from "@/components/WeekView";
 import { isDateParam, paddedUtcWindow, weekDayParams } from "@/lib/dates";
+import { isMissingRelationError } from "@/lib/supabase/errors";
 import { createClient } from "@/lib/supabase/server";
 import {
   EVENT_COLUMNS,
@@ -87,6 +88,13 @@ export default async function WeekPage({
       .lte("day", days[6]),
   ]);
 
+  const habitsError = isMissingRelationError(habitsResult.error)
+    ? null
+    : habitsResult.error?.message ?? null;
+  const habitLogsError = isMissingRelationError(habitLogsResult.error)
+    ? null
+    : habitLogsResult.error?.message ?? null;
+
   return (
     <WeekView
       weekParam={days[0]}
@@ -104,8 +112,8 @@ export default async function WeekPage({
       }
       tasksError={
         tasksResult.error?.message ??
-        habitsResult.error?.message ??
-        habitLogsResult.error?.message ??
+        habitsError ??
+        habitLogsError ??
         null
       }
     />

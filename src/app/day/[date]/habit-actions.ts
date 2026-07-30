@@ -1,6 +1,7 @@
 "use server";
 
 import { clampValue } from "@/lib/habits";
+import { friendlyDbError } from "@/lib/supabase/errors";
 import { createClient } from "@/lib/supabase/server";
 import { isHabitKind, type HabitKind } from "@/lib/types";
 
@@ -56,7 +57,7 @@ export async function toggleHabit(
     { onConflict: LOG_CONFLICT_TARGET },
   );
 
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: friendlyDbError(error) };
   return { ok: true };
 }
 
@@ -92,8 +93,8 @@ export async function incrementHabit(
       .maybeSingle(),
   ]);
 
-  if (habitResult.error) return { ok: false, error: habitResult.error.message };
-  if (logResult.error) return { ok: false, error: logResult.error.message };
+  if (habitResult.error) return { ok: false, error: friendlyDbError(habitResult.error) };
+  if (logResult.error) return { ok: false, error: friendlyDbError(logResult.error) };
 
   const target = Math.max(1, habitResult.data?.target ?? 1);
   const value = clampValue((logResult.data?.value ?? 0) + delta, target);
@@ -109,7 +110,7 @@ export async function incrementHabit(
     { onConflict: LOG_CONFLICT_TARGET },
   );
 
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: friendlyDbError(error) };
   return { ok: true };
 }
 
@@ -146,7 +147,7 @@ export async function addHabit(
     position: appendPosition(),
   });
 
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: friendlyDbError(error) };
   return { ok: true };
 }
 
@@ -166,7 +167,7 @@ export async function renameHabit(
     .eq("id", habitId)
     .eq("user_id", userId);
 
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: friendlyDbError(error) };
   return { ok: true };
 }
 
@@ -187,7 +188,7 @@ export async function archiveHabit(
     .eq("id", habitId)
     .eq("user_id", userId);
 
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: friendlyDbError(error) };
   return { ok: true };
 }
 
@@ -207,7 +208,7 @@ export async function deleteHabit(habitId: string): Promise<HabitResult> {
     .eq("habit_id", habitId)
     .eq("user_id", userId);
 
-  if (countError) return { ok: false, error: countError.message };
+  if (countError) return { ok: false, error: friendlyDbError(countError) };
 
   if ((count ?? 0) > 0) {
     const { error } = await supabase
@@ -216,7 +217,7 @@ export async function deleteHabit(habitId: string): Promise<HabitResult> {
       .eq("id", habitId)
       .eq("user_id", userId);
 
-    if (error) return { ok: false, error: error.message };
+    if (error) return { ok: false, error: friendlyDbError(error) };
     return { ok: true, outcome: "archived" };
   }
 
@@ -226,6 +227,6 @@ export async function deleteHabit(habitId: string): Promise<HabitResult> {
     .eq("id", habitId)
     .eq("user_id", userId);
 
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: friendlyDbError(error) };
   return { ok: true, outcome: "deleted" };
 }

@@ -3,6 +3,7 @@ import DayView from "@/components/DayView";
 import SetupNotice from "@/components/SetupNotice";
 import { isDateParam, paddedUtcWindow, shiftDateParam } from "@/lib/dates";
 import { HABIT_LOG_WINDOW_DAYS } from "@/lib/habits";
+import { isMissingRelationError } from "@/lib/supabase/errors";
 import { createClient } from "@/lib/supabase/server";
 import {
   DAILY_NOTE_COLUMNS,
@@ -113,6 +114,13 @@ export default async function DayPage({
       .lte("day", date),
   ]);
 
+  const habitsError = isMissingRelationError(habitsResult.error)
+    ? null
+    : habitsResult.error?.message ?? null;
+  const habitLogsError = isMissingRelationError(habitLogsResult.error)
+    ? null
+    : habitLogsResult.error?.message ?? null;
+
   return (
     <DayView
       dayParam={date}
@@ -132,8 +140,8 @@ export default async function DayPage({
       tasksError={
         listsResult.error?.message ??
         tasksResult.error?.message ??
-        habitsResult.error?.message ??
-        habitLogsResult.error?.message ??
+        habitsError ??
+        habitLogsError ??
         null
       }
     />
