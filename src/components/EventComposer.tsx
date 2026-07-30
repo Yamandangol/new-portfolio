@@ -3,17 +3,33 @@
 import { useEffect, useRef, useState } from "react";
 import { EVENT_COLOR_CLASSES } from "@/lib/colors";
 import { instantFrom, minutesToTimeValue, timeValueToMinutes } from "@/lib/dates";
+import {
+  describeRecurrence,
+  formatRrule,
+  parseRrule,
+  weekdayCodeOf,
+  type Frequency,
+  type WeekdayCode,
+} from "@/lib/recurrence";
 import { EVENT_COLORS, type EventColor } from "@/lib/types";
-import { deleteEvent, saveEvent } from "@/app/day/[date]/actions";
+import {
+  deleteEvent,
+  saveEvent,
+  type EditScope,
+} from "@/app/day/[date]/actions";
 
 export type ComposerDraft = {
-  /** absent for a new event */
+  /** Master row id. Absent when creating. */
   id?: string;
   title: string;
   notes: string;
   color: EventColor;
   startMinutes: number;
   endMinutes: number;
+  rrule: string | null;
+  reminderMinutes: number | null;
+  /** True when this block is one instance of a repeating series. */
+  isSeriesOccurrence: boolean;
 };
 
 type Props = {
@@ -23,10 +39,25 @@ type Props = {
   onSaved: () => void;
 };
 
-/**
- * Create/edit sheet. Renders as a centred dialog on a laptop and a bottom sheet
- * on a phone — same markup, different placement.
- */
+type RepeatMode = "NONE" | Frequency;
+
+const REMINDER_CHOICES: { value: number | null; label: string }[] = [
+  { value: null, label: "No reminder" },
+  { value: 0, label: "At start time" },
+  { value: 5, label: "5 minutes before" },
+  { value: 10, label: "10 minutes before" },
+  { value: 15, label: "15 minutes before" },
+  { value: 30, label: "30 minutes before" },
+  { value: 60, label: "1 hour before" },
+];
+
+const WEEKDAY_SHORT: Record<WeekdayCode, string> = {
+  MO: "M", TU: "T", WE: "W", TH: "T", FR: "F", SA: "S", SU: "S",
+};
+
+/** Week-order weekdays for the chip row (Monday first, matching WEEK_STARTS_ON). */
+const CHIP_ORDER: WeekdayCode[] = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
+
 export default function EventComposer({
   dayParam,
   draft,
@@ -34,19 +65,33 @@ export default function EventComposer({
   onSaved,
 }: Props) {
   const isEditing = Boolean(draft.id);
+  const existing = parseRrule(draft.rrule);
 
   const [title, setTitle] = useState(draft.title);
   const [notes, setNotes] = useState(draft.notes);
   const [color, setColor] = useState<EventColor>(draft.color);
   const [start, setStart] = useState(minutesToTimeValue(draft.startMinutes));
   const [end, setEnd] = useState(minutesToTimeValue(draft.endMinutes));
+
+  const [repeat, setRepeat] = useState<RepeatMode>(existing?.freq ?? "NONE");
+  const [interval, setInterval] = useState(existing?.interval ?? 1);
+  const [byDay, setByDay] = useState<WeekdayCode[]>(
+    existing?.byDay.length ? existing.byDay : [weekdayCodeOf(dayParam)],
+  );
+  const [until, setUntil] = useState(existing?.until ?? "");
+  const [reminder, setReminder] = useState<number | null>(
+    draft.reminderMinutes,
+  );
+  // Editing one instance of a series defaults to just that instance — the
+  // less destructive choice.
+  const [scope, setScope] = useState<EditScope>("single");
+
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<null | "save" | "delete">(null);
 
   const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Focus straight into the title so a new block is one keystroke away.
     titleRef.current?.focus();
     titleRef.current?.select();
   }, []);
@@ -58,6 +103,26 @@ export default function EventComposer({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  function buildRrule(): string | null {
+    if (repeat === "NONE") return null;
+    return formatRrule({
+      freq: repeat,
+      interval: Math.max(1, Math.floor(interval) || 1),
+      byDay: repeat === "WEEKLY" ? byDay : [],
+      until: until || null,
+    });
+  }
+
+  const previewRule = buildRrule();
+  const preview = previewRule
+    ? describeRecurrence(parseRrule(previewRule)!, dayParam)
+    : null;
+
+  // Changing the repeat rule is inherently a series-wide change.
+  const ruleChanged = (draft.rrule ?? null) !== previewRule;
+  const effectiveScope: EditScope =
+    draft.isSeriesOccurrence && !ruleChanged ? scope : "series";
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,6 +138,10 @@ export default function EventComposer({
       setError("End time has to be after the start time.");
       return;
     }
+    if (repeat === "WEEKLY" && byDay.length === 0) {
+      setError("Pick at least one day to repeat on.");
+      return;
+    }
 
     setBusy("save");
     const result = await saveEvent({
@@ -82,6 +151,10 @@ export default function EventComposer({
       color,
       startsAt: instantFrom(dayParam, startMinutes).toISOString(),
       endsAt: instantFrom(dayParam, endMinutes).toISOString(),
+      rrule: previewRule,
+      reminderMinutesBefore: reminder,
+      occurrenceDay: dayParam,
+      scope: effectiveScope,
     });
     setBusy(null);
 
@@ -93,12 +166,19 @@ export default function EventComposer({
     if (!draft.id) return;
     setError(null);
     setBusy("delete");
-    const result = await deleteEvent(draft.id);
+    const result = await deleteEvent(
+      draft.id,
+      draft.isSeriesOccurrence ? scope : "series",
+      dayParam,
+    );
     setBusy(null);
 
     if (result.ok) onSaved();
     else setError(result.error);
   }
+
+  const fieldClass =
+    "w-full rounded-lg border border-line-strong bg-canvas px-3 py-2 outline-none focus:border-accent";
 
   return (
     <div
@@ -109,7 +189,7 @@ export default function EventComposer({
     >
       <form
         onSubmit={submit}
-        className="w-full max-w-md rounded-t-2xl border border-line bg-surface p-4 shadow-xl sm:rounded-2xl sm:p-5"
+        className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-line bg-surface p-4 shadow-xl sm:rounded-2xl sm:p-5"
       >
         <div className="mb-3 flex items-baseline justify-between">
           <h2 className="text-base font-semibold">
@@ -143,7 +223,7 @@ export default function EventComposer({
               value={start}
               step={300}
               onChange={(e) => setStart(e.target.value)}
-              className="w-full rounded-lg border border-line-strong bg-canvas px-3 py-2 outline-none focus:border-accent"
+              className={fieldClass}
             />
           </label>
           <label className="flex-1">
@@ -155,10 +235,121 @@ export default function EventComposer({
               value={end}
               step={300}
               onChange={(e) => setEnd(e.target.value)}
-              className="w-full rounded-lg border border-line-strong bg-canvas px-3 py-2 outline-none focus:border-accent"
+              className={fieldClass}
             />
           </label>
         </div>
+
+        {/* ---- repeat -------------------------------------------------- */}
+        <label className="mt-3 block">
+          <span className="mb-1 block text-xs font-medium text-muted">
+            Repeat
+          </span>
+          <select
+            value={repeat}
+            onChange={(e) => setRepeat(e.target.value as RepeatMode)}
+            className={fieldClass}
+          >
+            <option value="NONE">Doesn&apos;t repeat</option>
+            <option value="DAILY">Daily</option>
+            <option value="WEEKLY">Weekly</option>
+            <option value="MONTHLY">Monthly</option>
+          </select>
+        </label>
+
+        {repeat !== "NONE" && (
+          <div className="mt-2 rounded-lg border border-line p-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted">Every</span>
+              <input
+                type="number"
+                min={1}
+                max={99}
+                value={interval}
+                onChange={(e) => setInterval(Number(e.target.value))}
+                aria-label="Repeat interval"
+                className="w-16 rounded-lg border border-line-strong bg-canvas px-2 py-1 text-sm outline-none focus:border-accent"
+              />
+              <span className="text-xs text-muted">
+                {repeat === "DAILY"
+                  ? "day(s)"
+                  : repeat === "WEEKLY"
+                    ? "week(s)"
+                    : "month(s)"}
+              </span>
+            </div>
+
+            {repeat === "WEEKLY" && (
+              <div className="mt-2 flex gap-1">
+                {CHIP_ORDER.map((code) => {
+                  const on = byDay.includes(code);
+                  return (
+                    <button
+                      key={code}
+                      type="button"
+                      aria-pressed={on}
+                      aria-label={code}
+                      onClick={() =>
+                        setByDay((prev) =>
+                          prev.includes(code)
+                            ? prev.filter((c) => c !== code)
+                            : [...prev, code],
+                        )
+                      }
+                      className={`size-7 rounded-full text-xs font-medium ${
+                        on
+                          ? "bg-accent text-white"
+                          : "border border-line text-muted hover:text-ink"
+                      }`}
+                    >
+                      {WEEKDAY_SHORT[code]}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <label className="mt-2 block">
+              <span className="mb-1 block text-xs font-medium text-muted">
+                Until (optional)
+              </span>
+              <input
+                type="date"
+                value={until}
+                min={dayParam}
+                onChange={(e) => setUntil(e.target.value)}
+                className="rounded-lg border border-line-strong bg-canvas px-2 py-1 text-sm outline-none focus:border-accent"
+              />
+            </label>
+
+            {preview && (
+              <p className="mt-2 text-xs text-muted">{preview}</p>
+            )}
+          </div>
+        )}
+
+        {/* ---- reminder ------------------------------------------------ */}
+        <label className="mt-3 block">
+          <span className="mb-1 block text-xs font-medium text-muted">
+            Reminder
+          </span>
+          <select
+            value={reminder === null ? "" : String(reminder)}
+            onChange={(e) =>
+              setReminder(e.target.value === "" ? null : Number(e.target.value))
+            }
+            className={fieldClass}
+          >
+            {REMINDER_CHOICES.map((choice) => (
+              <option
+                key={choice.label}
+                value={choice.value === null ? "" : String(choice.value)}
+              >
+                {choice.label}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <fieldset className="mt-3">
           <legend className="mb-1.5 text-xs font-medium text-muted">
@@ -189,6 +380,38 @@ export default function EventComposer({
           rows={2}
           className="mt-3 w-full resize-none rounded-lg border border-line-strong bg-canvas px-3 py-2 text-sm outline-none placeholder:text-muted focus:border-accent"
         />
+
+        {/* ---- which occurrences does this affect? --------------------- */}
+        {draft.isSeriesOccurrence && (
+          <fieldset className="mt-3 rounded-lg border border-line p-3">
+            <legend className="px-1 text-xs font-medium text-muted">
+              Apply to
+            </legend>
+            {(
+              [
+                ["single", "This occurrence"],
+                ["series", "The whole series"],
+              ] as const
+            ).map(([value, label]) => (
+              <label key={value} className="flex items-center gap-2 py-0.5">
+                <input
+                  type="radio"
+                  name="scope"
+                  checked={effectiveScope === value}
+                  disabled={ruleChanged}
+                  onChange={() => setScope(value)}
+                  className="accent-[var(--color-accent)]"
+                />
+                <span className="text-sm">{label}</span>
+              </label>
+            ))}
+            {ruleChanged && (
+              <p className="mt-1 text-[11px] text-muted">
+                Changing how it repeats applies to the whole series.
+              </p>
+            )}
+          </fieldset>
+        )}
 
         {error && (
           <p role="alert" className="mt-3 text-sm text-rose-600 dark:text-rose-400">

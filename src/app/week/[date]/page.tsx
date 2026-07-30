@@ -37,13 +37,21 @@ export default async function WeekPage({
   // one; the client clamps each event to the right local day.
   const { from, to } = paddedUtcWindow(days[0], 7);
 
-  const [eventsResult, tasksResult] = await Promise.all([
+  const [eventsResult, seriesResult, tasksResult] = await Promise.all([
     supabase
       .from("events")
       .select(EVENT_COLUMNS)
+      .is("rrule", null)
       .lt("starts_at", to)
       .gt("ends_at", from)
       .order("starts_at", { ascending: true }),
+
+    // Series masters regardless of the window — see the day view for why.
+    supabase
+      .from("events")
+      .select(EVENT_COLUMNS)
+      .not("rrule", "is", null)
+      .lte("starts_at", to),
 
     // Only tasks pinned into this week — the backlog isn't shown here.
     // `day` is a plain date column, so this needs no timezone maths.
@@ -59,10 +67,15 @@ export default async function WeekPage({
     <WeekView
       weekParam={days[0]}
       days={days}
-      events={(eventsResult.data ?? []) as CalendarEvent[]}
+      events={[
+        ...((eventsResult.data ?? []) as CalendarEvent[]),
+        ...((seriesResult.data ?? []) as CalendarEvent[]),
+      ]}
       tasks={(tasksResult.data ?? []) as Task[]}
       userEmail={user.email ?? "signed in"}
-      eventsError={eventsResult.error?.message ?? null}
+      eventsError={
+        eventsResult.error?.message ?? seriesResult.error?.message ?? null
+      }
       tasksError={tasksResult.error?.message ?? null}
     />
   );

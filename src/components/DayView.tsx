@@ -5,10 +5,13 @@ import { useRouter } from "next/navigation";
 import { useMemo, useOptimistic, useState } from "react";
 import { format } from "date-fns";
 import { signOut } from "@/app/auth/actions";
+import DailyNote from "@/components/DailyNote";
+import Reminders from "@/components/Reminders";
 import ScheduleGrid from "@/components/ScheduleGrid";
 import TaskPanel from "@/components/TaskPanel";
 import { localStartOfDay, shiftDateParam, toDateParam } from "@/lib/dates";
 import { layOutDay } from "@/lib/layout";
+import { expandOccurrences } from "@/lib/recurrence";
 import { reduceTasks } from "@/lib/tasks";
 import type { CalendarEvent, Task, TaskList } from "@/lib/types";
 
@@ -17,6 +20,7 @@ type Props = {
   events: CalendarEvent[];
   lists: TaskList[];
   tasks: Task[];
+  noteBody: string;
   userEmail: string;
   eventsError: string | null;
   tasksError: string | null;
@@ -30,6 +34,7 @@ export default function DayView({
   events,
   lists,
   tasks,
+  noteBody,
   userEmail,
   eventsError,
   tasksError,
@@ -38,9 +43,16 @@ export default function DayView({
   const [pane, setPane] = useState<Pane>("schedule");
 
   const dayStart = useMemo(() => localStartOfDay(dayParam), [dayParam]);
+
+  // Repeating series arrive as masters and are expanded here, in the browser,
+  // where the timezone is known — see the timezone policy in lib/dates.ts.
+  const occurrences = useMemo(
+    () => expandOccurrences(events, dayParam, dayParam),
+    [events, dayParam],
+  );
   const positioned = useMemo(
-    () => layOutDay(events, dayStart),
-    [events, dayStart],
+    () => layOutDay(occurrences, dayStart),
+    [occurrences, dayStart],
   );
 
   // The optimistic list lives here rather than inside TaskPanel so the tab
@@ -181,6 +193,8 @@ export default function DayView({
         </p>
       )}
 
+      <Reminders occurrences={occurrences} />
+
       {/* ---- body ----------------------------------------------------- */}
       <div className="flex min-h-0 flex-1">
         {/* Both panes stay mounted so switching tabs keeps scroll position. */}
@@ -198,6 +212,13 @@ export default function DayView({
             pane === "tasks" ? "flex" : "hidden"
           } lg:flex lg:w-80 lg:shrink-0 lg:border-l lg:border-line xl:w-96`}
         >
+          {/* key remounts the note on a date change, so a half-typed entry
+              can never carry over into another day. */}
+          <DailyNote
+            key={dayParam}
+            dayParam={dayParam}
+            initialBody={noteBody}
+          />
           <TaskPanel
             dayParam={dayParam}
             lists={lists}

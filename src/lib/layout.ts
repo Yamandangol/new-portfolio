@@ -1,7 +1,11 @@
-import type { CalendarEvent } from "@/lib/types";
+import type { EventOccurrence } from "@/lib/recurrence";
 
 export type PositionedEvent = {
-  event: CalendarEvent;
+  /**
+   * A concrete occurrence, not a stored row: a one-off passes through as
+   * itself, a repeating series arrives already expanded for this day.
+   */
+  event: EventOccurrence;
   /** minutes since local midnight, clamped to the day */
   startMinutes: number;
   endMinutes: number;
@@ -26,7 +30,7 @@ const MIN_VISIBLE_MINUTES = 22;
  * spans midnight still renders as a partial block on both days.
  */
 export function layOutDay(
-  events: CalendarEvent[],
+  events: EventOccurrence[],
   dayStart: Date,
 ): PositionedEvent[] {
   const dayStartMs = dayStart.getTime();

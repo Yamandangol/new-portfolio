@@ -111,6 +111,55 @@ The two renderings are not a styling variation, they're different tools:
   planning actually needs: what's on each day in order, with the day view one tap
   away for editing. The agenda is deliberately read-only.
 
+### Recurrence
+
+`src/lib/recurrence.ts` implements a **deliberate subset** of RFC 5545:
+`FREQ=DAILY|WEEKLY|MONTHLY`, `INTERVAL`, `BYDAY` (weekly), `UNTIL`.
+
+**Why hand-rolled instead of the `rrule` package.** Recurrence here means *local
+wall-clock* repetition: an 18:00 gym slot must stay at 18:00 across a DST change,
+not drift to 17:00. General RRULE libraries expand from a UTC instant, which
+fights the timezone policy above. So this module works purely in local calendar
+days and `expandOccurrences` re-applies the master's wall-clock time to each one.
+Both of the local zone's 2026 DST transitions are covered by assertions.
+
+**`COUNT` is not supported, on purpose.** Honouring it means enumerating every
+occurrence from the series start; without it, expansion jumps straight to the
+first candidate in range, so a routine begun years ago costs the same as one
+begun yesterday. `UNTIL` covers the same need.
+
+**Storage shape.** A repeating event is one *master* row carrying the `rrule`;
+occurrences are generated in the browser and never stored. Their ids are
+synthetic (`<masterId>::<yyyy-mm-dd>`), so anything editing one must resolve back
+to `seriesId`.
+
+**Editing one occurrence** excludes that date on the master (`excluded_dates`)
+and, for an edit, writes a standalone event with `recurrence_parent_id` set for
+provenance. This needs no column the locked schema doesn't already have. Changing
+the repeat rule itself always applies to the whole series — the UI disables the
+scope choice and says so, because "this occurrence repeats differently" is not a
+coherent state.
+
+**Fetching.** Series masters are queried *without* a date-window filter — a
+routine that started years ago still occurs today, so the window would hide it.
+One-offs stay windowed. There are only ever a handful of masters.
+
+### Reminders
+
+`reminder_minutes_before` fires **while the app is open**, via the Notification
+API with an in-page toast fallback (the toast shows even when notification
+permission is denied). A 30-second poll is used rather than one timer per event:
+long `setTimeout`s drift and get throttled in background tabs. Fired reminders are
+recorded in `localStorage` so a reload doesn't replay them, and anything more than
+5 minutes overdue is skipped so opening the app after lunch doesn't produce a
+flood.
+
+**This is not background push.** Notifying with the app closed needs a service
+worker, push subscriptions, VAPID keys and a scheduled server job to send them —
+real infrastructure with a running cost, against the near-zero-cost, low-
+maintenance constraint. If that's ever wanted, it's an additive change: the column
+and the UI already exist.
+
 ---
 
 ## Conventions
@@ -205,7 +254,7 @@ npm run lint       # eslint
 - [x] **Phase 1** — auth + single-day time-blocked schedule (add/edit/delete)
 - [x] **Phase 2** — checklist and to-do layer alongside the schedule
 - [x] **Phase 3** — week view for forward planning
-- [ ] **Phase 4** — recurring routines, daily notes, reminders
+- [x] **Phase 4** — recurring routines, daily notes, reminders
 
 Layout: schedule and tasks sit side by side from `lg` (1024px) up; below that
 they're a Schedule/Tasks switch, with both panes kept mounted so switching
@@ -224,6 +273,20 @@ doesn't lose the schedule's scroll position.
   height, 18:00 at 18 ×, with the grid 24 × tall.
 - Week grid: seven equal columns, blocks in the right days, the current-time
   line only in today's column, per-day open-task badges.
+- Recurrence assertions: parse/format round trips, daily/weekly/monthly interval
+  phasing, `BYDAY`, 31st-of-the-month skipping short months, 29 Feb in leap years
+  only, `UNTIL` clipping, and both 2026 DST transitions in the local zone — where
+  a daily 18:00 routine keeps its wall-clock time while the UTC gap across the
+  change absorbs the offset shift.
+- Recurrence rendered in the week view against a fixture with two long-running
+  series: the weekday routine appears Mon–Fri and not at weekends, the Mon/Wed/Fri
+  routine appears only on those days, and an `excluded_dates` entry removes
+  exactly one occurrence while the rest of the series stays intact.
+- Composer round-trips a stored rule (`FREQ=WEEKLY;BYDAY=MO,WE,FR` → the right
+  three chips lit and "Every week on Mon, Wed, Fri"), and editing the rule forces
+  the scope to the whole series with the choice disabled and explained.
+- Daily note renders its stored body; reminder banner correctly stays hidden when
+  notification permission is already denied.
 - Responsive checked at 375px and 1280px, no horizontal overflow in either.
 
 **Still unverified: persistence and cross-device sync.** Everything above is
@@ -241,6 +304,13 @@ session.
   day view is one tap away and is the editing surface.
 - Task `notes` and `event_id` columns exist and are unused — attaching a task to
   a specific time block is modelled but has no UI.
+- **Recurring tasks.** `tasks.rrule` exists and nothing writes it. Recurring
+  *routines* are modelled as repeating events, which covers the brief; a repeating
+  checklist (weekly shop) would use this column.
+- Reminders don't fire with the app closed — see the Reminders section for what
+  that would cost.
+- Recurrence has no `COUNT`, no "last Friday of the month", and no per-occurrence
+  *move* to a different day (editing one occurrence keeps it on its own date).
 - Dragging an existing block to move or resize it (create-by-drag works; editing
   times is done in the composer).
 - All-day events — the `all_day` column exists and is selected, but nothing

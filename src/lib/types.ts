@@ -25,11 +25,29 @@ export type CalendarEvent = {
   /** ISO 8601 instant */
   ends_at: string;
   all_day: boolean;
+  /**
+   * RRULE subset (see `src/lib/recurrence.ts`). When set, this row is the
+   * *master* of a series and `starts_at` is its first occurrence.
+   */
+  rrule: string | null;
+  /** Local days (`'yyyy-MM-dd'`) removed from the series. */
+  excluded_dates: string[];
+  /** Set on a standalone event that was split out of a series, for provenance. */
+  recurrence_parent_id: string | null;
+  reminder_minutes_before: number | null;
 };
 
-/** Columns Phase 1 selects from `events`. */
 export const EVENT_COLUMNS =
-  "id, title, notes, color, starts_at, ends_at, all_day";
+  "id, title, notes, color, starts_at, ends_at, all_day, rrule, excluded_dates, recurrence_parent_id, reminder_minutes_before";
+
+/** Mirrors the `daily_notes` table. */
+export type DailyNote = {
+  id: string;
+  day: string;
+  body: string;
+};
+
+export const DAILY_NOTE_COLUMNS = "id, day, body";
 
 /**
  * 'checklist' — a standing list you tick through and reset (groceries, packing).

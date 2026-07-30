@@ -9,7 +9,7 @@ import {
   toDateParam,
 } from "@/lib/dates";
 import { visibleMinutes, type PositionedEvent } from "@/lib/layout";
-import type { CalendarEvent } from "@/lib/types";
+import type { EventOccurrence } from "@/lib/recurrence";
 
 /** Times snap to a quarter hour. */
 export const SNAP = 15;
@@ -24,7 +24,7 @@ type Props = {
   dayParam: string;
   positioned: PositionedEvent[];
   onCreate: (dayParam: string, range: TimeRange) => void;
-  onEdit: (event: CalendarEvent, range: TimeRange) => void;
+  onEdit: (event: EventOccurrence, range: TimeRange) => void;
   /** Suppresses gestures while a composer is open over the top. */
   disabled?: boolean;
   emptyHint?: string;

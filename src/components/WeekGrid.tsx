@@ -112,6 +112,9 @@ export default function WeekGrid({
                     color: "indigo",
                     startMinutes: range.from,
                     endMinutes: range.to,
+                    rrule: null,
+                    reminderMinutes: null,
+                    isSeriesOccurrence: false,
                   },
                 })
               }
@@ -119,12 +122,17 @@ export default function WeekGrid({
                 setComposer({
                   day,
                   draft: {
-                    id: event.id,
+                    // For a generated occurrence, event.id is synthetic — the
+                    // editable row is the series master.
+                    id: event.seriesId ?? event.id,
                     title: event.title,
                     notes: event.notes ?? "",
                     color: event.color,
                     startMinutes: range.from,
                     endMinutes: range.to,
+                    rrule: event.rrule,
+                    reminderMinutes: event.reminder_minutes_before,
+                    isSeriesOccurrence: event.seriesId !== null,
                   },
                 })
               }

@@ -4,10 +4,12 @@ import SetupNotice from "@/components/SetupNotice";
 import { isDateParam, paddedUtcWindow } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
 import {
+  DAILY_NOTE_COLUMNS,
   EVENT_COLUMNS,
   LIST_COLUMNS,
   TASK_COLUMNS,
   type CalendarEvent,
+  type DailyNote,
   type Task,
   type TaskList,
 } from "@/lib/types";
@@ -40,39 +42,63 @@ export default async function DayPage({
   // overlap test, so blocks that started before the window still show up.
   const { from, to } = paddedUtcWindow(date);
 
-  const [eventsResult, listsResult, tasksResult] = await Promise.all([
-    supabase
-      .from("events")
-      .select(EVENT_COLUMNS)
-      .lt("starts_at", to)
-      .gt("ends_at", from)
-      .order("starts_at", { ascending: true }),
+  const [eventsResult, seriesResult, listsResult, tasksResult, noteResult] =
+    await Promise.all([
+      supabase
+        .from("events")
+        .select(EVENT_COLUMNS)
+        .is("rrule", null)
+        .lt("starts_at", to)
+        .gt("ends_at", from)
+        .order("starts_at", { ascending: true }),
 
-    // Archived lists come back too. They render collapsed under "Archived"
-    // rather than being filtered away, so archiving stays reversible.
-    supabase
-      .from("lists")
-      .select(LIST_COLUMNS)
-      .order("position", { ascending: true }),
+      // Series masters are fetched whatever the window: a routine started years
+      // ago still has occurrences today, so a date filter would hide it. There
+      // are only ever a handful of these rows.
+      supabase
+        .from("events")
+        .select(EVENT_COLUMNS)
+        .not("rrule", "is", null)
+        .lte("starts_at", to),
 
-    // Every still-open task, plus anything pinned to this day so completed
-    // items remain visible on the day you ticked them. `day` is a plain date
-    // column, so comparing it to the URL's calendar day needs no timezone maths.
-    supabase
-      .from("tasks")
-      .select(TASK_COLUMNS)
-      .or(`done.eq.false,day.eq.${date}`)
-      .order("position", { ascending: true }),
-  ]);
+      // Archived lists come back too. They render collapsed under "Archived"
+      // rather than being filtered away, so archiving stays reversible.
+      supabase
+        .from("lists")
+        .select(LIST_COLUMNS)
+        .order("position", { ascending: true }),
+
+      // Every still-open task, plus anything pinned to this day so completed
+      // items remain visible on the day you ticked them. `day` is a plain date
+      // column, so comparing it to the URL's day needs no timezone maths.
+      supabase
+        .from("tasks")
+        .select(TASK_COLUMNS)
+        .or(`done.eq.false,day.eq.${date}`)
+        .order("position", { ascending: true }),
+
+      // maybeSingle: most days simply have no note.
+      supabase
+        .from("daily_notes")
+        .select(DAILY_NOTE_COLUMNS)
+        .eq("day", date)
+        .maybeSingle(),
+    ]);
 
   return (
     <DayView
       dayParam={date}
-      events={(eventsResult.data ?? []) as CalendarEvent[]}
+      events={[
+        ...((eventsResult.data ?? []) as CalendarEvent[]),
+        ...((seriesResult.data ?? []) as CalendarEvent[]),
+      ]}
       lists={(listsResult.data ?? []) as TaskList[]}
       tasks={(tasksResult.data ?? []) as Task[]}
+      noteBody={(noteResult.data as DailyNote | null)?.body ?? ""}
       userEmail={user.email ?? "signed in"}
-      eventsError={eventsResult.error?.message ?? null}
+      eventsError={
+        eventsResult.error?.message ?? seriesResult.error?.message ?? null
+      }
       tasksError={
         listsResult.error?.message ?? tasksResult.error?.message ?? null
       }

@@ -62,16 +62,24 @@ export default function ScheduleGrid({ dayParam, positioned }: Props) {
                   color: "indigo",
                   startMinutes: range.from,
                   endMinutes: range.to,
+                  rrule: null,
+                  reminderMinutes: null,
+                  isSeriesOccurrence: false,
                 })
               }
               onEdit={(event, range: TimeRange) =>
                 setComposer({
-                  id: event.id,
+                  // For a generated occurrence, event.id is synthetic — the
+                  // editable row is the series master.
+                  id: event.seriesId ?? event.id,
                   title: event.title,
                   notes: event.notes ?? "",
                   color: event.color,
                   startMinutes: range.from,
                   endMinutes: range.to,
+                  rrule: event.rrule,
+                  reminderMinutes: event.reminder_minutes_before,
+                  isSeriesOccurrence: event.seriesId !== null,
                 })
               }
             />

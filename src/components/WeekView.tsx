@@ -12,6 +12,7 @@ import {
   toDateParam,
 } from "@/lib/dates";
 import { layOutDay, type PositionedEvent } from "@/lib/layout";
+import { expandOccurrences } from "@/lib/recurrence";
 import type { CalendarEvent, Task } from "@/lib/types";
 
 type Props = {
@@ -36,9 +37,12 @@ export default function WeekView({
   // One layout pass per day. Each is independent: an event is clamped to the
   // local day it falls in, so a block spanning midnight appears in both columns.
   const positionedByDay = useMemo(() => {
+    // Expand repeating series across the whole week once, then lay out each day
+    // from that single pass.
+    const occurrences = expandOccurrences(events, days[0], days[6]);
     const map = new Map<string, PositionedEvent[]>();
     for (const day of days) {
-      map.set(day, layOutDay(events, localStartOfDay(day)));
+      map.set(day, layOutDay(occurrences, localStartOfDay(day)));
     }
     return map;
   }, [days, events]);
