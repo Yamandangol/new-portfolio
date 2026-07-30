@@ -83,3 +83,48 @@ export type Task = {
 
 export const LIST_COLUMNS = "id, name, kind, position, archived";
 export const TASK_COLUMNS = "id, list_id, title, done, day, position";
+
+/**
+ * 'boolean' — done or not (make the bed).
+ * 'count'   — tallied towards a target (8 glasses of water).
+ */
+export const HABIT_KINDS = ["boolean", "count"] as const;
+export type HabitKind = (typeof HABIT_KINDS)[number];
+
+export function isHabitKind(value: string): value is HabitKind {
+  return (HABIT_KINDS as readonly string[]).includes(value);
+}
+
+/** Mirrors the `habits` table. */
+export type Habit = {
+  id: string;
+  title: string;
+  /** Emoji, or null. */
+  icon: string | null;
+  color: string;
+  kind: HabitKind;
+  /** Always >= 1; a boolean habit's target is 1. */
+  target: number;
+  /** e.g. 'glasses', 'min'. */
+  unit: string | null;
+  position: number;
+  /** Archived habits stay fetched so they can be restored, like lists. */
+  archived: boolean;
+};
+
+/**
+ * Mirrors the `habit_logs` table — one row per habit per local day. A missing
+ * row means "not done"; rows are only written once you interact with a habit.
+ */
+export type HabitLog = {
+  id: string;
+  habit_id: string;
+  /** 'yyyy-MM-dd' local calendar day. */
+  day: string;
+  value: number;
+  completed: boolean;
+};
+
+export const HABIT_COLUMNS =
+  "id, title, icon, color, kind, target, unit, position, archived";
+export const HABIT_LOG_COLUMNS = "id, habit_id, day, value, completed";

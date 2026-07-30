@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { format } from "date-fns";
+import HabitDots from "@/components/HabitDots";
+import type { DayHabitScore } from "@/components/WeekView";
 import { EVENT_COLOR_CLASSES } from "@/lib/colors";
 import { localStartOfDay, minutesToTimeValue, toDateParam } from "@/lib/dates";
 import type { PositionedEvent } from "@/lib/layout";
@@ -11,6 +13,7 @@ type Props = {
   days: string[];
   positionedByDay: Map<string, PositionedEvent[]>;
   tasksByDay: Map<string, Task[]>;
+  habitScoresByDay: Map<string, DayHabitScore>;
 };
 
 /**
@@ -22,6 +25,7 @@ export default function WeekAgenda({
   days,
   positionedByDay,
   tasksByDay,
+  habitScoresByDay,
 }: Props) {
   const today = toDateParam(new Date());
 
@@ -51,6 +55,8 @@ export default function WeekAgenda({
                   Today
                 </span>
               )}
+              {/* ml-auto stays on the summary, not the dots: HabitDots renders
+                  nothing when there are no habits, which would drop the push. */}
               <span className="ml-auto text-[11px] text-muted">
                 {events.length === 0 && openTasks.length === 0
                   ? "Free"
@@ -61,6 +67,9 @@ export default function WeekAgenda({
                       .filter(Boolean)
                       .join(" · ")}
               </span>
+              <HabitDots
+                score={habitScoresByDay.get(day) ?? { done: 0, total: 0 }}
+              />
             </Link>
 
             {(events.length > 0 || openTasks.length > 0) && (

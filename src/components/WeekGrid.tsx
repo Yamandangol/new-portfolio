@@ -10,6 +10,8 @@ import DayColumn, {
   type TimeRange,
 } from "@/components/DayColumn";
 import EventComposer, { type ComposerDraft } from "@/components/EventComposer";
+import HabitDots from "@/components/HabitDots";
+import type { DayHabitScore } from "@/components/WeekView";
 import {
   localStartOfDay,
   minutesSinceMidnight,
@@ -21,6 +23,7 @@ type Props = {
   days: string[];
   positionedByDay: Map<string, PositionedEvent[]>;
   openTaskCounts: Map<string, number>;
+  habitScoresByDay: Map<string, DayHabitScore>;
 };
 
 /** Seven DayColumns under a sticky header row. Laptop only — see WeekAgenda. */
@@ -28,6 +31,7 @@ export default function WeekGrid({
   days,
   positionedByDay,
   openTaskCounts,
+  habitScoresByDay,
 }: Props) {
   const router = useRouter();
 
@@ -87,6 +91,10 @@ export default function WeekGrid({
                   {open}
                 </span>
               )}
+              <HabitDots
+                score={habitScoresByDay.get(day) ?? { done: 0, total: 0 }}
+                className="mt-0.5 flex justify-center"
+              />
             </Link>
           );
         })}

@@ -11,15 +11,21 @@ import {
   shiftWeekParam,
   toDateParam,
 } from "@/lib/dates";
+import { habitScore } from "@/lib/habits";
 import { layOutDay, type PositionedEvent } from "@/lib/layout";
 import { expandOccurrences } from "@/lib/recurrence";
-import type { CalendarEvent, Task } from "@/lib/types";
+import type { CalendarEvent, Habit, HabitLog, Task } from "@/lib/types";
+
+/** Habits completed out of the day's total, for the per-day indicator. */
+export type DayHabitScore = { done: number; total: number };
 
 type Props = {
   weekParam: string;
   days: string[];
   events: CalendarEvent[];
   tasks: Task[];
+  habits: Habit[];
+  habitLogs: HabitLog[];
   userEmail: string;
   eventsError: string | null;
   tasksError: string | null;
@@ -30,6 +36,8 @@ export default function WeekView({
   days,
   events,
   tasks,
+  habits,
+  habitLogs,
   userEmail,
   eventsError,
   tasksError,
@@ -62,6 +70,12 @@ export default function WeekView({
     }
     return map;
   }, [tasksByDay]);
+
+  const habitScoresByDay = useMemo(() => {
+    const map = new Map<string, DayHabitScore>();
+    for (const day of days) map.set(day, habitScore(habits, habitLogs, day));
+    return map;
+  }, [days, habits, habitLogs]);
 
   const today = toDateParam(new Date());
   const containsToday = days.includes(today);
@@ -150,6 +164,7 @@ export default function WeekView({
           days={days}
           positionedByDay={positionedByDay}
           openTaskCounts={openTaskCounts}
+          habitScoresByDay={habitScoresByDay}
         />
       </div>
       <div className="flex min-h-0 flex-1 flex-col lg:hidden">
@@ -157,6 +172,7 @@ export default function WeekView({
           days={days}
           positionedByDay={positionedByDay}
           tasksByDay={tasksByDay}
+          habitScoresByDay={habitScoresByDay}
         />
       </div>
     </div>

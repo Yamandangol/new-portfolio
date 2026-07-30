@@ -5,8 +5,12 @@ import { isDateParam, paddedUtcWindow, weekDayParams } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
 import {
   EVENT_COLUMNS,
+  HABIT_COLUMNS,
+  HABIT_LOG_COLUMNS,
   TASK_COLUMNS,
   type CalendarEvent,
+  type Habit,
+  type HabitLog,
   type Task,
 } from "@/lib/types";
 
@@ -37,7 +41,13 @@ export default async function WeekPage({
   // one; the client clamps each event to the right local day.
   const { from, to } = paddedUtcWindow(days[0], 7);
 
-  const [eventsResult, seriesResult, tasksResult] = await Promise.all([
+  const [
+    eventsResult,
+    seriesResult,
+    tasksResult,
+    habitsResult,
+    habitLogsResult,
+  ] = await Promise.all([
     supabase
       .from("events")
       .select(EVENT_COLUMNS)
@@ -61,6 +71,20 @@ export default async function WeekPage({
       .gte("day", days[0])
       .lte("day", days[6])
       .order("position", { ascending: true }),
+
+    // Only the active habits — the week view shows how many were completed each
+    // day, and an archived habit shouldn't inflate the denominator.
+    supabase
+      .from("habits")
+      .select(HABIT_COLUMNS)
+      .eq("archived", false)
+      .order("position", { ascending: true }),
+
+    supabase
+      .from("habit_logs")
+      .select(HABIT_LOG_COLUMNS)
+      .gte("day", days[0])
+      .lte("day", days[6]),
   ]);
 
   return (
@@ -72,11 +96,18 @@ export default async function WeekPage({
         ...((seriesResult.data ?? []) as CalendarEvent[]),
       ]}
       tasks={(tasksResult.data ?? []) as Task[]}
+      habits={(habitsResult.data ?? []) as Habit[]}
+      habitLogs={(habitLogsResult.data ?? []) as HabitLog[]}
       userEmail={user.email ?? "signed in"}
       eventsError={
         eventsResult.error?.message ?? seriesResult.error?.message ?? null
       }
-      tasksError={tasksResult.error?.message ?? null}
+      tasksError={
+        tasksResult.error?.message ??
+        habitsResult.error?.message ??
+        habitLogsResult.error?.message ??
+        null
+      }
     />
   );
 }

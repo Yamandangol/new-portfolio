@@ -10,16 +10,26 @@ import Reminders from "@/components/Reminders";
 import ScheduleGrid from "@/components/ScheduleGrid";
 import TaskPanel from "@/components/TaskPanel";
 import { localStartOfDay, shiftDateParam, toDateParam } from "@/lib/dates";
+import { habitScore, reduceHabits } from "@/lib/habits";
 import { layOutDay } from "@/lib/layout";
 import { expandOccurrences } from "@/lib/recurrence";
 import { reduceTasks } from "@/lib/tasks";
-import type { CalendarEvent, Task, TaskList } from "@/lib/types";
+import type {
+  CalendarEvent,
+  Habit,
+  HabitLog,
+  Task,
+  TaskList,
+} from "@/lib/types";
 
 type Props = {
   dayParam: string;
   events: CalendarEvent[];
   lists: TaskList[];
   tasks: Task[];
+  habits: Habit[];
+  /** A trailing window ending at `dayParam`, so streaks can be computed. */
+  habitLogs: HabitLog[];
   noteBody: string;
   userEmail: string;
   eventsError: string | null;
@@ -34,6 +44,8 @@ export default function DayView({
   events,
   lists,
   tasks,
+  habits,
+  habitLogs,
   noteBody,
   userEmail,
   eventsError,
@@ -60,10 +72,29 @@ export default function DayView({
   // move the count immediately, not after the server round-trip lands.
   const [optimisticTasks, applyOptimistic] = useOptimistic(tasks, reduceTasks);
 
+  // Habits and their logs share one optimistic value: ticking a habit writes a
+  // log row, so splitting them would let the two halves disagree mid-transition.
+  const habitState = useMemo(
+    () => ({ habits, logs: habitLogs }),
+    [habits, habitLogs],
+  );
+  const [optimisticHabits, applyHabitOptimistic] = useOptimistic(
+    habitState,
+    reduceHabits,
+  );
+
   const isToday = toDateParam(new Date()) === dayParam;
   const openToday = optimisticTasks.filter(
     (t) => t.day === dayParam && !t.done,
   ).length;
+
+  // Feeds the phone tab badge alongside the open-task count, so the tab shows
+  // whether anything still needs doing without opening the pane.
+  const habitsDone = habitScore(
+    optimisticHabits.habits,
+    optimisticHabits.logs,
+    dayParam,
+  );
 
   return (
     <div className="flex h-dvh flex-col">
@@ -146,7 +177,13 @@ export default function DayView({
             {(
               [
                 ["schedule", "Schedule", positioned.length],
-                ["tasks", "Tasks", openToday],
+                // Open tasks plus habits still to do — the badge is "how much
+                // is left in this pane", and habits now live in it too.
+                [
+                  "tasks",
+                  "Tasks",
+                  openToday + (habitsDone.total - habitsDone.done),
+                ],
               ] as const
             ).map(([value, label, count]) => (
               <button
@@ -224,6 +261,9 @@ export default function DayView({
             lists={lists}
             tasks={optimisticTasks}
             applyOptimistic={applyOptimistic}
+            habits={optimisticHabits.habits}
+            habitLogs={optimisticHabits.logs}
+            applyHabitOptimistic={applyHabitOptimistic}
             loadError={tasksError}
           />
         </aside>

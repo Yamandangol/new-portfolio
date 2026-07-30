@@ -111,6 +111,34 @@ The two renderings are not a styling variation, they're different tools:
   planning actually needs: what's on each day in order, with the day view one tap
   away for editing. The agenda is deliberately read-only.
 
+### Habits
+
+Two tables (migration `0002`). `habits` is the definition; `habit_logs` is one
+row per habit per local day, written only when you interact — a missing row
+means "not done", so an untouched habit costs nothing.
+
+A **boolean habit is a count habit with `target = 1`**, so `value`/`completed`
+and the progress maths are identical for both kinds and there is no branching in
+`habitProgress`.
+
+**Streaks need a window, not a day.** The day view fetches the trailing
+`HABIT_LOG_WINDOW_DAYS` (90) of logs, because "consecutive completed days" can't
+be derived from a single day's rows. A run longer than the window reports as the
+window length. If today isn't done yet the count runs to yesterday, so a streak
+doesn't read as zero all morning; a gap before that ends it.
+
+**Habits and their logs share one `useOptimistic` value** (`HabitState`), owned by
+`DayView` like the task one. Ticking a habit writes a log row, so splitting the
+two would let them disagree mid-transition.
+
+**Deleting is guarded.** `deleteHabit` only truly deletes while a habit has no
+logs; anything with history is archived instead, because cascading the logs away
+would destroy the record of days you actually did the thing. The action returns
+`outcome: "deleted" | "archived"` so the UI can tell which happened.
+
+The `+`/`−` steppers are 32px rather than the 24px a dense list would suggest —
+they're the most-tapped controls in the app and 24px is an awkward phone target.
+
 ### Recurrence
 
 `src/lib/recurrence.ts` implements a **deliberate subset** of RFC 5545:

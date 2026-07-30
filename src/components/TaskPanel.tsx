@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import HabitPanel from "@/components/HabitPanel";
 import TaskRow from "@/components/TaskRow";
 import {
   addList,
@@ -17,8 +18,9 @@ import {
   type TaskResult,
 } from "@/app/day/[date]/task-actions";
 import { localStartOfDay, toDateParam } from "@/lib/dates";
+import type { HabitOptimisticAction } from "@/lib/habits";
 import { groupTasks, type OptimisticAction } from "@/lib/tasks";
-import type { ListKind, Task, TaskList } from "@/lib/types";
+import type { Habit, HabitLog, ListKind, Task, TaskList } from "@/lib/types";
 
 type Props = {
   dayParam: string;
@@ -26,6 +28,9 @@ type Props = {
   /** Already carries any pending optimistic edits — DayView owns that state. */
   tasks: Task[];
   applyOptimistic: (action: OptimisticAction) => void;
+  habits: Habit[];
+  habitLogs: HabitLog[];
+  applyHabitOptimistic: (action: HabitOptimisticAction) => void;
   loadError: string | null;
 };
 
@@ -34,6 +39,9 @@ export default function TaskPanel({
   lists,
   tasks,
   applyOptimistic,
+  habits,
+  habitLogs,
+  applyHabitOptimistic,
   loadError,
 }: Props) {
   const router = useRouter();
@@ -147,6 +155,14 @@ export default function TaskPanel({
           {loadError ?? error}
         </p>
       )}
+
+      {/* ---- daily habits ---------------------------------------------- */}
+      <HabitPanel
+        dayParam={dayParam}
+        habits={habits}
+        logs={habitLogs}
+        applyOptimistic={applyHabitOptimistic}
+      />
 
       {/* ---- pinned to this day ---------------------------------------- */}
       <section className="border-b border-line px-3 py-3">
