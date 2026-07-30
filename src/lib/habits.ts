@@ -30,7 +30,8 @@ export type HabitOptimisticAction =
     }
   | { type: "rename"; habitId: string; title: string }
   | { type: "delete"; habitId: string }
-  | { type: "archive"; habitId: string; archived: boolean };
+  | { type: "archive"; habitId: string; archived: boolean }
+  | { type: "lock"; habitId: string; locked: boolean };
 
 /** Clamp to the habit's allowed range: never below zero, never past the target. */
 export function clampValue(value: number, target: number): number {
@@ -116,6 +117,14 @@ export function reduceHabits(
         ...state,
         habits: state.habits.map((h) =>
           h.id === action.habitId ? { ...h, archived: action.archived } : h,
+        ),
+      };
+
+    case "lock":
+      return {
+        ...state,
+        habits: state.habits.map((h) =>
+          h.id === action.habitId ? { ...h, locked: action.locked } : h,
         ),
       };
   }

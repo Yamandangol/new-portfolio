@@ -110,6 +110,8 @@ export type Habit = {
   position: number;
   /** Archived habits stay fetched so they can be restored, like lists. */
   archived: boolean;
+  /** Blocks archiving (not restoring) — guards a core habit from a stray tap. */
+  locked: boolean;
 };
 
 /**
@@ -126,5 +128,5 @@ export type HabitLog = {
 };
 
 export const HABIT_COLUMNS =
-  "id, title, icon, color, kind, target, unit, position, archived";
+  "id, title, icon, color, kind, target, unit, position, archived, locked";
 export const HABIT_LOG_COLUMNS = "id, habit_id, day, value, completed";

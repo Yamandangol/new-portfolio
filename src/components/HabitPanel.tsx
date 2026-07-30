@@ -8,6 +8,7 @@ import {
   archiveHabit,
   incrementHabit,
   renameHabit,
+  setHabitLocked,
   toggleHabit,
   type HabitResult,
 } from "@/app/day/[date]/habit-actions";
@@ -136,6 +137,12 @@ export default function HabitPanel({
                   () => archiveHabit(habit.id, true),
                 )
               }
+              onToggleLock={() =>
+                mutate(
+                  { type: "lock", habitId: habit.id, locked: !habit.locked },
+                  () => setHabitLocked(habit.id, !habit.locked),
+                )
+              }
             />
           ))}
         </ul>
@@ -189,6 +196,7 @@ export default function HabitPanel({
                 // Sorts to the end next to the real row's appended position.
                 position: Date.now(),
                 archived: false,
+                locked: false,
               },
             },
             () => addHabit(title, kind, target, unit),

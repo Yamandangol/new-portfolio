@@ -14,6 +14,7 @@ type Props = {
   onIncrement: (delta: number) => void;
   onRename: (title: string) => void;
   onArchive: () => void;
+  onToggleLock: () => void;
 };
 
 export default function HabitRow({
@@ -24,6 +25,7 @@ export default function HabitRow({
   onIncrement,
   onRename,
   onArchive,
+  onToggleLock,
 }: Props) {
   // `draft` only exists while editing, seeded at the moment editing starts —
   // so there is nothing to keep in sync with incoming props (same as TaskRow).
@@ -100,7 +102,7 @@ export default function HabitRow({
           <span
             title={`${streak} day streak`}
             aria-label={`${streak} day streak`}
-            className="shrink-0 text-[11px] tabular-nums text-muted"
+            className="shrink-0 text-[11px] font-semibold tabular-nums text-amber-600 dark:text-amber-400"
           >
             🔥{streak}
           </span>
@@ -145,10 +147,53 @@ export default function HabitRow({
 
         <button
           type="button"
+          onClick={onToggleLock}
+          aria-pressed={habit.locked}
+          title={habit.locked ? "Locked — click to unlock" : "Lock against archiving"}
+          aria-label={
+            habit.locked ? `Unlock ${habit.title}` : `Lock ${habit.title}`
+          }
+          className={`shrink-0 rounded p-1 ${
+            habit.locked ? "text-accent" : "text-muted hover:text-ink"
+          }`}
+        >
+          <svg viewBox="0 0 16 16" className="size-3.5" aria-hidden>
+            <rect
+              x="3"
+              y="7.5"
+              width="10"
+              height="7"
+              rx="1.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            />
+            {habit.locked ? (
+              <path
+                d="M5.5 7.5V5a2.5 2.5 0 0 1 5 0v2.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+            ) : (
+              <path
+                d="M5.5 7.5V5a2.5 2.5 0 0 1 4.5-1.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            )}
+          </svg>
+        </button>
+
+        <button
+          type="button"
           onClick={onArchive}
+          disabled={habit.locked}
           aria-label={`Archive ${habit.title}`}
-          title="Archive"
-          className="shrink-0 rounded px-1 text-muted hover:text-rose-600 dark:hover:text-rose-400"
+          title={habit.locked ? "Locked — unlock to archive" : "Archive"}
+          className="shrink-0 rounded px-1 text-muted hover:text-rose-600 disabled:opacity-30 disabled:hover:text-muted dark:hover:text-rose-400"
         >
           ×
         </button>

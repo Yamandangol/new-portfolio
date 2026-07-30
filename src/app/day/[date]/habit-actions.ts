@@ -174,6 +174,10 @@ export async function renameHabit(
 /**
  * Soft delete. The habit keeps its logs and still comes back from the query, so
  * it can be restored in the app — same as list archiving.
+ *
+ * Guarded server-side, not just in the UI: a locked habit refuses to archive.
+ * Restoring (archived: false) is never blocked — the lock only protects
+ * against losing a core habit to a stray tap, not against undoing that.
  */
 export async function archiveHabit(
   habitId: string,
@@ -182,9 +186,41 @@ export async function archiveHabit(
   const { supabase, userId } = await authed();
   if (!userId) return { ok: false, error: SIGNED_OUT };
 
+  if (archived) {
+    const { data, error: readError } = await supabase
+      .from("habits")
+      .select("locked")
+      .eq("id", habitId)
+      .eq("user_id", userId)
+      .single();
+
+    if (readError) return { ok: false, error: friendlyDbError(readError) };
+    if (data?.locked) {
+      return { ok: false, error: "Locked — unlock it first to archive." };
+    }
+  }
+
   const { error } = await supabase
     .from("habits")
     .update({ archived })
+    .eq("id", habitId)
+    .eq("user_id", userId);
+
+  if (error) return { ok: false, error: friendlyDbError(error) };
+  return { ok: true };
+}
+
+/** Toggle whether a habit can be archived by a tap on its × button. */
+export async function setHabitLocked(
+  habitId: string,
+  locked: boolean,
+): Promise<HabitResult> {
+  const { supabase, userId } = await authed();
+  if (!userId) return { ok: false, error: SIGNED_OUT };
+
+  const { error } = await supabase
+    .from("habits")
+    .update({ locked })
     .eq("id", habitId)
     .eq("user_id", userId);
 
