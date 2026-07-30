@@ -110,6 +110,21 @@ export default function DayView({
             className="rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs outline-none focus:border-accent"
           />
 
+          <div className="flex items-center gap-1 rounded-lg border border-line p-0.5">
+            <span
+              aria-current="page"
+              className="rounded-md bg-accent px-2 py-1 text-xs font-semibold text-white"
+            >
+              Day
+            </span>
+            <Link
+              href={`/week/${dayParam}`}
+              className="rounded-md px-2 py-1 text-xs text-muted hover:text-ink"
+            >
+              Week
+            </Link>
+          </div>
+
           {/* Phone: one pane at a time. Laptop: both, so this is hidden. */}
           <div
             role="tablist"

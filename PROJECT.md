@@ -96,6 +96,21 @@ Checklists vs to-do lists differ only in how they end: a checklist is **reset**
 (unticked in bulk, `resetChecklist`) for reuse; a to-do list is cleared item by
 item.
 
+### Week view
+
+`WEEK_STARTS_ON` in `src/lib/dates.ts` is the **only** place the first weekday is
+decided — currently Monday (ISO 8601). Switching to Sunday-first is that one
+line; every week calculation reads it.
+
+The two renderings are not a styling variation, they're different tools:
+
+- **Laptop (`lg`+)** — seven `DayColumn`s under a sticky header row. Full
+  create/edit, same gestures as the day view.
+- **Phone (`< lg`)** — an agenda list. Seven time-grid columns at 375px would
+  leave ~45px per day, which is unreadable, so the phone gets what forward
+  planning actually needs: what's on each day in order, with the day view one tap
+  away for editing. The agenda is deliberately read-only.
+
 ---
 
 ## Conventions
@@ -105,12 +120,19 @@ item.
 src/app/                routes
   page.tsx              → redirects to today (client-side; see timezone policy)
   login/                sign-in
-  day/[date]/           the day view + its Server Actions
+  day/[date]/           the day view + all task/event Server Actions
+  week/[date]/          the week view (any day in the week is a valid URL)
   auth/actions.ts       signIn / signOut
 src/components/         client components (PascalCase files)
 src/lib/                pure helpers, no React (camelCase files)
 supabase/migrations/    numbered, append-only SQL
 ```
+
+**Grid geometry has one home.** `DayColumn` owns the hour lines, positioned
+blocks, drag/tap-to-create gesture and current-time line. The day view renders
+one; the week view renders seven. Don't reimplement pointer-to-minute maths
+anywhere else — extend `DayColumn` instead. `HourGutter` ships with it so the
+labels always line up with the rows.
 
 **Naming** — database columns `snake_case`; TypeScript `camelCase`. Rows crossing
 that boundary keep their `snake_case` field names (`starts_at`) rather than being
@@ -182,7 +204,7 @@ npm run lint       # eslint
 
 - [x] **Phase 1** — auth + single-day time-blocked schedule (add/edit/delete)
 - [x] **Phase 2** — checklist and to-do layer alongside the schedule
-- [ ] **Phase 3** — week view for forward planning
+- [x] **Phase 3** — week view for forward planning
 - [ ] **Phase 4** — recurring routines, daily notes, reminders
 
 Layout: schedule and tasks sit side by side from `lg` (1024px) up; below that
@@ -194,16 +216,29 @@ doesn't lose the schedule's scroll position.
   anonymous caller.
 - `proxy.ts` redirects unauthenticated requests to `/login`; a bad sign-in
   surfaces the error instead of crashing.
-- `layOutDay` and the task grouping/reducer are covered by assertions
-  (overlap columns, column reuse, midnight clamping, archived-list orphans).
-- Responsive layout checked at 375px and 1280px, no horizontal overflow.
+- Assertions cover `layOutDay` (overlap columns, column reuse, midnight
+  clamping), the task grouping/reducer (archived-list orphans, the deliberate
+  double-appearance), and the week helpers — 1,100 dates checked for
+  Monday-start, consecutiveness and idempotency, plus month/year boundaries.
+- Block geometry measured in the browser: 09:00 lands at exactly 9 × the hour
+  height, 18:00 at 18 ×, with the grid 24 × tall.
+- Week grid: seven equal columns, blocks in the right days, the current-time
+  line only in today's column, per-day open-task badges.
+- Responsive checked at 375px and 1280px, no horizontal overflow in either.
+
+**Still unverified: persistence and cross-device sync.** Everything above is
+either the unauthenticated path or fixture-driven rendering. Creating an event,
+ticking a task, reloading and confirming it survived all need a signed-in
+session.
 
 ### Known gaps, deliberately deferred
 - **Manual reordering.** `position` is a float precisely so reordering is a
   midpoint insert, but nothing writes it yet — new rows append at `Date.now()`
   and order is fixed. Drag-reorder is the intended use of that column.
 - Moving a task to a *different* day: you can pin/unpin it to the day you're
-  looking at, but not send it forward. Natural to fold into Phase 3.
+  looking at, but not send it forward from the week view.
+- The phone week agenda is read-only by design — no create/edit there, since the
+  day view is one tap away and is the editing surface.
 - Task `notes` and `event_id` columns exist and are unused — attaching a task to
   a specific time block is modelled but has no UI.
 - Dragging an existing block to move or resize it (create-by-drag works; editing

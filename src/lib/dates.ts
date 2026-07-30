@@ -1,4 +1,12 @@
-import { addDays, format, isValid, parse } from "date-fns";
+import {
+  addDays,
+  addWeeks,
+  format,
+  isValid,
+  parse,
+  startOfWeek,
+  type Day,
+} from "date-fns";
 
 /**
  * Timezone policy
@@ -38,16 +46,56 @@ export function shiftDateParam(param: string, days: number): string {
 }
 
 /**
- * UTC-anchored window generously covering `param`'s local day in any timezone.
- * Used for the server-side fetch; the client narrows it down precisely.
+ * UTC-anchored window generously covering `spanDays` local days starting at
+ * `param`, in any timezone. Used for the server-side fetch; the client narrows
+ * it down precisely. The ±2-day pad comfortably exceeds the ±14h of real
+ * timezone offsets.
  */
-export function paddedUtcWindow(param: string): { from: string; to: string } {
+export function paddedUtcWindow(
+  param: string,
+  spanDays = 1,
+): { from: string; to: string } {
   const [y, m, d] = param.split("-").map(Number);
   const anchor = Date.UTC(y, m - 1, d);
   return {
     from: new Date(anchor - 2 * DAY_MS).toISOString(),
-    to: new Date(anchor + 3 * DAY_MS).toISOString(),
+    to: new Date(anchor + (spanDays + 2) * DAY_MS).toISOString(),
   };
+}
+
+/**
+ * Which weekday a week starts on — 0 Sunday, 1 Monday (ISO 8601).
+ *
+ * Deliberately the only place this is decided: every week calculation reads it,
+ * so switching to Sunday-first is a one-line change here.
+ */
+export const WEEK_STARTS_ON: Day = 1;
+
+/** The seven `'yyyy-MM-dd'` params of the week containing `param`. */
+export function weekDayParams(param: string): string[] {
+  const start = startOfWeek(localStartOfDay(param), {
+    weekStartsOn: WEEK_STARTS_ON,
+  });
+  return Array.from({ length: 7 }, (_, i) => toDateParam(addDays(start, i)));
+}
+
+export function shiftWeekParam(param: string, weeks: number): string {
+  return toDateParam(addWeeks(localStartOfDay(param), weeks));
+}
+
+/** Heading like `4 – 10 Aug 2026`, collapsing month and year when shared. */
+export function formatWeekHeading(param: string): string {
+  const days = weekDayParams(param);
+  const start = localStartOfDay(days[0]);
+  const end = localStartOfDay(days[6]);
+
+  if (start.getFullYear() !== end.getFullYear()) {
+    return `${format(start, "d MMM yyyy")} – ${format(end, "d MMM yyyy")}`;
+  }
+  if (start.getMonth() !== end.getMonth()) {
+    return `${format(start, "d MMM")} – ${format(end, "d MMM yyyy")}`;
+  }
+  return `${format(start, "d")} – ${format(end, "d MMM yyyy")}`;
 }
 
 /** Minutes since local midnight. */
