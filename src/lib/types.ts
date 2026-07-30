@@ -48,6 +48,8 @@ export type TaskList = {
   name: string;
   kind: ListKind;
   position: number;
+  /** Archived lists stay fetched so they can be restored, but render collapsed. */
+  archived: boolean;
 };
 
 /** Mirrors the `tasks` table. */
@@ -61,5 +63,5 @@ export type Task = {
   position: number;
 };
 
-export const LIST_COLUMNS = "id, name, kind, position";
+export const LIST_COLUMNS = "id, name, kind, position, archived";
 export const TASK_COLUMNS = "id, list_id, title, done, day, position";

@@ -168,16 +168,20 @@ export async function renameList(
 }
 
 /**
- * Soft delete. The list keeps its tasks, so archiving is recoverable from the
- * dashboard — unlike a hard delete, which would cascade them away.
+ * Soft delete. The list keeps its tasks and still comes back from the query, so
+ * it can be restored in the app — unlike a hard delete, which would cascade the
+ * tasks away irrecoverably.
  */
-export async function archiveList(id: string): Promise<TaskResult> {
+export async function setListArchived(
+  id: string,
+  archived: boolean,
+): Promise<TaskResult> {
   const { supabase, userId } = await authed();
   if (!userId) return { ok: false, error: SIGNED_OUT };
 
   const { error } = await supabase
     .from("lists")
-    .update({ archived: true })
+    .update({ archived })
     .eq("id", id)
     .eq("user_id", userId);
 

@@ -1,33 +1,31 @@
 "use client";
 
-import { useMemo, useOptimistic, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import TaskRow from "@/components/TaskRow";
 import {
   addList,
   addTask,
-  archiveList,
   deleteTask,
   renameList,
   renameTask,
   resetChecklist,
+  setListArchived,
   setTaskDay,
   setTaskDone,
   type TaskResult,
 } from "@/app/day/[date]/task-actions";
 import { localStartOfDay, toDateParam } from "@/lib/dates";
-import {
-  groupTasks,
-  reduceTasks,
-  type OptimisticAction,
-} from "@/lib/tasks";
+import { groupTasks, type OptimisticAction } from "@/lib/tasks";
 import type { ListKind, Task, TaskList } from "@/lib/types";
 
 type Props = {
   dayParam: string;
   lists: TaskList[];
+  /** Already carries any pending optimistic edits — DayView owns that state. */
   tasks: Task[];
+  applyOptimistic: (action: OptimisticAction) => void;
   loadError: string | null;
 };
 
@@ -35,10 +33,10 @@ export default function TaskPanel({
   dayParam,
   lists,
   tasks,
+  applyOptimistic,
   loadError,
 }: Props) {
   const router = useRouter();
-  const [optimisticTasks, applyOptimistic] = useOptimistic(tasks, reduceTasks);
   const [, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -58,10 +56,26 @@ export default function TaskPanel({
     [lists],
   );
 
+  const activeLists = useMemo(() => lists.filter((l) => !l.archived), [lists]);
+  const archivedLists = useMemo(() => lists.filter((l) => l.archived), [lists]);
+
+  // Grouped against the active lists only, so an archived list's tasks are held
+  // back rather than spilling into the backlog.
   const { today, backlog, byList } = useMemo(
-    () => groupTasks(optimisticTasks, lists, dayParam),
-    [optimisticTasks, lists, dayParam],
+    () => groupTasks(tasks, activeLists, dayParam),
+    [tasks, activeLists, dayParam],
   );
+
+  /** Open-item counts for archived lists, shown before you restore one. */
+  const archivedCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const task of tasks) {
+      if (task.list_id && !task.done) {
+        counts.set(task.list_id, (counts.get(task.list_id) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [tasks]);
 
   const isToday = toDateParam(new Date()) === dayParam;
   const dayLabel = isToday
@@ -109,6 +123,18 @@ export default function TaskPanel({
         },
         () => addTask({ title, listId, day }),
       );
+  }
+
+  /**
+   * Lists aren't in the optimistic layer — they change rarely, and a refresh is
+   * quick enough that a briefly stale list header isn't worth the machinery.
+   */
+  function setArchived(listId: string, archived: boolean) {
+    startTransition(async () => {
+      const result = await setListArchived(listId, archived);
+      setError(result.ok ? null : result.error);
+      router.refresh();
+    });
   }
 
   return (
@@ -182,7 +208,7 @@ export default function TaskPanel({
       </section>
 
       {/* ---- user lists ------------------------------------------------ */}
-      {lists.map((list) => (
+      {activeLists.map((list) => (
         <ListSection
           key={list.id}
           list={list}
@@ -203,15 +229,41 @@ export default function TaskPanel({
               router.refresh();
             })
           }
-          onArchive={() =>
-            startTransition(async () => {
-              const result = await archiveList(list.id);
-              setError(result.ok ? null : result.error);
-              router.refresh();
-            })
-          }
+          onArchive={() => setArchived(list.id, true)}
         />
       ))}
+
+      {archivedLists.length > 0 && (
+        <section className="border-b border-line px-3 py-3">
+          <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+            Archived
+          </h2>
+          <ul>
+            {archivedLists.map((list) => (
+              <li
+                key={list.id}
+                className="flex items-center gap-2 rounded-md px-1 py-1"
+              >
+                <span className="min-w-0 flex-1 truncate text-sm text-muted">
+                  {list.name}
+                  {(archivedCounts.get(list.id) ?? 0) > 0 && (
+                    <span className="ml-1.5 text-[11px]">
+                      {archivedCounts.get(list.id)} open
+                    </span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setArchived(list.id, false)}
+                  className="shrink-0 rounded px-1 text-[11px] text-muted hover:text-ink"
+                >
+                  Restore
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <NewList
         onCreate={(name, kind) =>
@@ -355,7 +407,7 @@ function ListSection({
         <button
           type="button"
           onClick={onArchive}
-          title="Archive list"
+          title="Archive list — its items are kept and it can be restored"
           aria-label={`Archive ${list.name}`}
           className="shrink-0 rounded px-1 text-muted hover:text-rose-600 dark:hover:text-rose-400"
         >

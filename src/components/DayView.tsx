@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useOptimistic, useState } from "react";
 import { format } from "date-fns";
 import { signOut } from "@/app/auth/actions";
 import ScheduleGrid from "@/components/ScheduleGrid";
 import TaskPanel from "@/components/TaskPanel";
 import { localStartOfDay, shiftDateParam, toDateParam } from "@/lib/dates";
 import { layOutDay } from "@/lib/layout";
+import { reduceTasks } from "@/lib/tasks";
 import type { CalendarEvent, Task, TaskList } from "@/lib/types";
 
 type Props = {
@@ -42,8 +43,15 @@ export default function DayView({
     [events, dayStart],
   );
 
+  // The optimistic list lives here rather than inside TaskPanel so the tab
+  // badge below and the panel's rows can't disagree: ticking a task has to
+  // move the count immediately, not after the server round-trip lands.
+  const [optimisticTasks, applyOptimistic] = useOptimistic(tasks, reduceTasks);
+
   const isToday = toDateParam(new Date()) === dayParam;
-  const openToday = tasks.filter((t) => t.day === dayParam && !t.done).length;
+  const openToday = optimisticTasks.filter(
+    (t) => t.day === dayParam && !t.done,
+  ).length;
 
   return (
     <div className="flex h-dvh flex-col">
@@ -178,7 +186,8 @@ export default function DayView({
           <TaskPanel
             dayParam={dayParam}
             lists={lists}
-            tasks={tasks}
+            tasks={optimisticTasks}
+            applyOptimistic={applyOptimistic}
             loadError={tasksError}
           />
         </aside>

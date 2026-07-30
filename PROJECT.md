@@ -70,6 +70,32 @@ config to set, and correct whether you're at home or travelling. Don't "optimise
 this into an exact server-side day range without first solving how the server
 learns the timezone.
 
+### Task layer
+
+The panel has three kinds of section, derived by `groupTasks`:
+
+| Section      | Which tasks                          |
+| ------------ | ------------------------------------ |
+| *(day name)* | `day` = the day being viewed         |
+| **To-do**    | `list_id` null **and** `day` null    |
+| each list    | `list_id` = that list                |
+
+Two behaviours that look like bugs but are deliberate:
+
+- **A task can appear twice.** One pinned to the day *and* filed under a list
+  shows in both sections — the same task in two views, exactly as Todoist shows
+  a project task in Today. Ticking it in either place updates both.
+- **Archiving is reversible.** `archiveList` was a dead end at first: the query
+  filtered archived lists out and nothing could bring them back, so a list and
+  its tasks vanished for good. Archived lists are now fetched, shown collapsed
+  under **Archived**, and restorable. `groupTasks` still withholds their tasks so
+  they don't leak into the backlog. Never hard-delete a list — the `tasks`
+  foreign key is `on delete cascade` and would take the items with it.
+
+Checklists vs to-do lists differ only in how they end: a checklist is **reset**
+(unticked in bulk, `resetChecklist`) for reuse; a to-do list is cleared item by
+item.
+
 ---
 
 ## Conventions
@@ -93,6 +119,15 @@ mapped, so a type mismatch is a compile error instead of a silent rename bug.
 **Data flow** — Server Component fetches → Client Component renders → Server
 Action mutates → `router.refresh()`. Server Actions return
 `{ ok: true } | { ok: false, error }`; they never throw for user-facing problems.
+
+**Optimistic updates** — task edits apply locally before the round-trip, because
+ticking a checkbox has to feel instant. The rule: **one `useOptimistic` per
+screen, owned by the highest component that reads the data.** It lives in
+`DayView`, not `TaskPanel`, so the phone tab badge and the panel rows can never
+disagree. The reducer is `reduceTasks` in `src/lib/tasks.ts` — pure, and unit
+tested. Apply the action *inside* the same transition as the Server Action call,
+then `router.refresh()` within that transition, so the optimistic value survives
+until real data replaces it.
 
 **Styling** — semantic tokens only (`bg-canvas`, `bg-surface`, `border-line`,
 `text-ink`, `text-muted`, `bg-accent`), defined once in `globals.css` and
@@ -146,15 +181,35 @@ npm run lint       # eslint
 ## Phase status
 
 - [x] **Phase 1** — auth + single-day time-blocked schedule (add/edit/delete)
-- [ ] **Phase 2** — checklist and to-do layer alongside the schedule
+- [x] **Phase 2** — checklist and to-do layer alongside the schedule
 - [ ] **Phase 3** — week view for forward planning
 - [ ] **Phase 4** — recurring routines, daily notes, reminders
 
+Layout: schedule and tasks sit side by side from `lg` (1024px) up; below that
+they're a Schedule/Tasks switch, with both panes kept mounted so switching
+doesn't lose the schedule's scroll position.
+
+### Verified
+- Migration applied; all four tables exist and RLS returns nothing to an
+  anonymous caller.
+- `proxy.ts` redirects unauthenticated requests to `/login`; a bad sign-in
+  surfaces the error instead of crashing.
+- `layOutDay` and the task grouping/reducer are covered by assertions
+  (overlap columns, column reuse, midnight clamping, archived-list orphans).
+- Responsive layout checked at 375px and 1280px, no horizontal overflow.
+
 ### Known gaps, deliberately deferred
+- **Manual reordering.** `position` is a float precisely so reordering is a
+  midpoint insert, but nothing writes it yet — new rows append at `Date.now()`
+  and order is fixed. Drag-reorder is the intended use of that column.
+- Moving a task to a *different* day: you can pin/unpin it to the day you're
+  looking at, but not send it forward. Natural to fold into Phase 3.
+- Task `notes` and `event_id` columns exist and are unused — attaching a task to
+  a specific time block is modelled but has no UI.
 - Dragging an existing block to move or resize it (create-by-drag works; editing
   times is done in the composer).
 - All-day events — the `all_day` column exists and is selected, but nothing
   reads it yet: there's no UI to set it and no all-day strip above the grid, so
   an all-day row would currently render as an ordinary 24-hour block.
-- Recurrence, reminders, notes — Phase 4 columns exist, unused.
+- Recurrence and reminders — Phase 4 columns exist, unused.
 - No service worker, so no offline use.

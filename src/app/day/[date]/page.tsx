@@ -48,10 +48,11 @@ export default async function DayPage({
       .gt("ends_at", from)
       .order("starts_at", { ascending: true }),
 
+    // Archived lists come back too. They render collapsed under "Archived"
+    // rather than being filtered away, so archiving stays reversible.
     supabase
       .from("lists")
       .select(LIST_COLUMNS)
-      .eq("archived", false)
       .order("position", { ascending: true }),
 
     // Every still-open task, plus anything pinned to this day so completed
