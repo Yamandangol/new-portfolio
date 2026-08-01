@@ -52,7 +52,9 @@ export default function DayView({
   tasksError,
 }: Props) {
   const router = useRouter();
-  const [pane, setPane] = useState<Pane>("schedule");
+  // Tasks first on a phone: habits, note and today's list are what get opened
+  // many times a day. The schedule is one tap away.
+  const [pane, setPane] = useState<Pane>("tasks");
 
   const dayStart = useMemo(() => localStartOfDay(dayParam), [dayParam]);
 
@@ -176,7 +178,7 @@ export default function DayView({
           >
             {(
               [
-                ["schedule", "Schedule", positioned.length],
+                // Tasks first — it's the default pane, so it leads the switch.
                 // Open tasks plus habits still to do — the badge is "how much
                 // is left in this pane", and habits now live in it too.
                 [
@@ -184,6 +186,7 @@ export default function DayView({
                   "Tasks",
                   openToday + (habitsDone.total - habitsDone.done),
                 ],
+                ["schedule", "Schedule", positioned.length],
               ] as const
             ).map(([value, label, count]) => (
               <button
