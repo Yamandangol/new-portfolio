@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Projects</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      body {
+        margin: 0;
+        background: #07111f;
+        color: #f5f7fa;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .card {
+        width: min(760px, 100%);
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 20px;
+        padding: 32px;
+        box-shadow: 0 16px 40px rgba(0,0,0,0.28);
+      }
+
+      h1 {
+        margin-top: 0;
+        font-size: 2rem;
+      }
+
+      p {
+        line-height: 1.6;
+        color: #dfe7f1;
+      }
+
+      .project {
+        margin-top: 20px;
+        padding: 16px 18px;
+        border-radius: 12px;
+        background: rgba(255,255,255,0.08);
+      }
+
+      a {
+        color: #75d7ff;
+        text-decoration: none;
+      }
+
+      .home-link {
+        display: inline-block;
+        margin-top: 20px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>My Projects</h1>
+      <p>The project section is now available and will showcase my recent work here.</p>
+
+      <div class="project">
+        <h2>Personal Calendar App</h2>
+        <p>A task and habit planner built with Next.js and Supabase.</p>
+      </div>
+
+      <a class="home-link" href="../index.html">← Back to home</a>
+    </div>
+  </body>
+</html>
