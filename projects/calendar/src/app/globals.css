@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Design tokens.
+
+   Semantic names only (canvas / surface / line / ink / muted / accent) so the
+   dark theme is a matter of re-pointing variables, never of touching markup.
+   Tailwind v4 turns each --color-* into a utility, e.g. bg-canvas, border-line.
+--------------------------------------------------------------------------- */
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
+  --color-canvas: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-line: #e4e7ec;
+  --color-line-strong: #d0d5dd;
+  --color-ink: #101828;
+  --color-muted: #667085;
+  --color-accent: #4f46e5;
+  --color-now: #e11d48;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-canvas: #0c0e13;
+    --color-surface: #151922;
+    --color-line: #232935;
+    --color-line-strong: #303845;
+    --color-ink: #e8eaf0;
+    --color-muted: #98a2b3;
+    --color-accent: #818cf8;
+    --color-now: #fb7185;
+  }
+}
+
+/* Height of one hour row in the schedule grid; drives all block positioning. */
+:root {
+  --hour-height: 3rem;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --hour-height: 3.5rem;
+  }
+}
+
+/* These MUST stay inside @layer base. Unlayered rules outrank every layered
+   one, so an unlayered `button { font: inherit }` would silently override
+   Tailwind's own font-size/leading utilities on every button in the app. */
+@layer base {
+  html {
+    color-scheme: light dark;
+    /* Avoid iOS zooming the page when focusing an input. */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    /* Respect the iOS home-bar / notch when installed as a PWA. */
+    padding-bottom: env(safe-area-inset-bottom);
+    overscroll-behavior-y: none;
+  }
+
+  /* Form controls inherit the theme rather than the UA's default light styling. */
+  input,
+  textarea,
+  select,
+  button {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    color: inherit;
+  }
+}
+
+/* A drag on the schedule shouldn't select the hour labels. */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
